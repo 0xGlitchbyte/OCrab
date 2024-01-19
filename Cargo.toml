@@ -1,5 +1,5 @@
 [package]
-name = "c2ocaml"
+name = "rust2ocaml"
 version = "0.1.0"
 edition = "2021"
 
