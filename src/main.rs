@@ -18,7 +18,11 @@ impl Display for OCaml {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OCaml::Let { name, ty, value } => {
-                write!(f, "let {} : {} = {}", name, ty, value)
+                if let Some(ty) = ty {
+                    write!(f, "let {} : {} = {}", name, ty, value)
+                } else {
+                    write!(f, "let {} = {}", name, value)
+                }
             }
         }
     }
@@ -97,7 +101,7 @@ fn rust_item_to_ocaml_item(item: syn::Item) -> Option<OCaml> {
         }) => Some(OCaml::Let {
             name: format!("{}", name),
             value: format!("{}", rust_expr_to_ocaml_expr(&value).unwrap()),
-            ty: format!("{}", extract_type_from_rust_ast(&ty)),
+            ty: extract_type_from_rust_ast(&ty),
         }),
         _ => None,
     }
