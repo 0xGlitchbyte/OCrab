@@ -1,3 +1,6 @@
 /target
 /output
 /input
+*.txt
+empty.rs
+*.ml

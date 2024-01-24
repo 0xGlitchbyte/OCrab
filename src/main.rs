@@ -1,7 +1,8 @@
-use std::fmt::Display;
+use std::fmt::write;
 use std::fs::File;
 use std::io::Read;
-use syn::{Expr, ExprLit, Item, ItemConst, Lit, Type};
+use std::{fmt::Display, fs};
+use syn::{Expr, ExprLit, ExprPath, Item, ItemConst, Lit, Path, Type};
 
 //use syn::File;
 
@@ -10,19 +11,27 @@ enum OCaml {
     Let {
         name: String,
         ty: Option<String>,
-        value: String,
+        value: Option<OCamlExpr>,
     },
+    Statements(Vec<OCaml>),
 }
 
 impl Display for OCaml {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OCaml::Let { name, ty, value } => {
-                if let Some(ty) = ty {
-                    write!(f, "let {} : {} = {}", name, ty, value)
-                } else {
-                    write!(f, "let {} = {}", name, value)
+            OCaml::Let { name, ty, value } => match (ty, value) {
+                (Some(ty), None) => write!(f, "let {} : {}", name.to_lowercase(), ty),
+                (None, Some(value)) => write!(f, "let {} = {}", name.to_lowercase(), value),
+                (Some(ty), Some(value)) => {
+                    write!(f, "let {} : {} = {}", name.to_lowercase(), ty, value)
                 }
+                (None, None) => Ok(()),
+            },
+            OCaml::Statements(s) => {
+                for item in s.iter() {
+                    writeln!(f, "{}", item)?;
+                }
+                Ok(())
             }
         }
     }
@@ -31,12 +40,16 @@ impl Display for OCaml {
 #[derive(Debug)]
 enum OCamlExpr {
     Literal(OCamlLiteral),
+    Var(String), //Unary
+                 //Binary
+                 //Struct
 }
 
 impl Display for OCamlExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OCamlExpr::Literal(lit) => write!(f, "{}", lit),
+            OCamlExpr::Var(str) => write!(f, "{}", str),
         }
     }
 }
@@ -54,41 +67,30 @@ impl Display for OCamlLiteral {
     }
 }
 
-#[derive(Debug)]
-enum OCamlType {
-    Ty(String),
-}
-
-impl Display for OCamlType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OCamlType::Ty(ty) => write!(f, "{}", ty),
-        }
-    }
-}
-
 fn main() {
     let filename = "empty.rs";
 
-    let mut file = File::open(&filename).expect("Unable to open file");
+    let mut file = File::open(filename).expect("Unable to open file");
 
     let mut src = String::new();
     file.read_to_string(&mut src).expect("Unable to read file");
 
     let syntax = syn::parse_file(&src).expect("Unable to parse file");
 
-    println!("{:#?}", syntax);
+    //println!("{:#?}", syntax);
 
-    let syntax_items: String = syntax
+    let syntax_items = syntax
         .items
         .into_iter()
         .flat_map(rust_item_to_ocaml_item)
-        .map(|item| item.to_string())
-        .collect::<Vec<String>>()
-        .join("\n");
+        .collect::<Vec<OCaml>>();
 
     // Debug impl is available if Syn is built with "extra-traits" feature.
     println!("{:#?}", syntax_items);
+
+    let statements = OCaml::Statements(syntax_items);
+
+    write_ocaml_to_ml_file(statements);
 }
 
 fn rust_item_to_ocaml_item(item: syn::Item) -> Option<OCaml> {
@@ -100,27 +102,34 @@ fn rust_item_to_ocaml_item(item: syn::Item) -> Option<OCaml> {
             ..
         }) => Some(OCaml::Let {
             name: format!("{}", name),
-            value: format!("{}", rust_expr_to_ocaml_expr(&value).unwrap()),
+            value: rust_expr_to_ocaml_expr(&value),
             ty: extract_type_from_rust_ast(&ty),
         }),
-        _ => None,
+        _ => todo!("{:#?} is not implemented", item),
     }
 }
 
 fn rust_expr_to_ocaml_expr(expr: &Expr) -> Option<OCamlExpr> {
     match expr {
-        Expr::Lit(ExprLit { attrs, lit }) => {
-            Some(OCamlExpr::Literal(rust_literal_to_ocaml_literal(&lit)?))
+        Expr::Lit(ExprLit { lit, .. }) => {
+            Some(OCamlExpr::Literal(rust_literal_to_ocaml_literal(lit)?))
         }
-        _ => None,
+        Expr::Path(ExprPath { path, .. }) => Some(OCamlExpr::Var(extract_var_from_rust_ast(path)?)),
+        _ => todo!("{:#?} is not implemented", expr),
     }
 }
 
 fn rust_literal_to_ocaml_literal(lit: &Lit) -> Option<OCamlLiteral> {
     match lit {
         Lit::Int(int) => Some(OCamlLiteral::Number(format!("{}", int))),
-        _ => None,
+        _ => todo!("{:#?} is not implemented", lit),
     }
+}
+
+fn extract_var_from_rust_ast(var: &Path) -> Option<String> {
+    let seg = var.segments.last()?;
+    let ident = &seg.ident;
+    Some(ident.to_string().to_lowercase())
 }
 
 fn extract_type_from_rust_ast(ty: &Type) -> Option<String> {
@@ -131,8 +140,14 @@ fn extract_type_from_rust_ast(ty: &Type) -> Option<String> {
             let path = &type_path.path;
             let seg = path.segments.last()?;
             let ident = &seg.ident;
-            return Some(ident.to_string());
+            Some(ident.to_string())
         }
-        _ => None,
+        _ => todo!("{:#?} is not implemented", ty),
     }
+}
+
+fn write_ocaml_to_ml_file(ocaml_code: OCaml) {
+    let data = ocaml_code.to_string();
+    let file_name = "libc.ml";
+    fs::write(file_name, data).expect("Unable to write file");
 }
