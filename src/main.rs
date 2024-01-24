@@ -1,4 +1,3 @@
-use std::fmt::write;
 use std::fs::File;
 use std::io::Read;
 use std::{fmt::Display, fs};
@@ -40,7 +39,7 @@ impl Display for OCaml {
 #[derive(Debug)]
 enum OCamlExpr {
     Literal(OCamlLiteral),
-    Var(String), //Unary
+    Path(Vec<String>), //Unary
                  //Binary
                  //Struct
 }
@@ -49,7 +48,7 @@ impl Display for OCamlExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OCamlExpr::Literal(lit) => write!(f, "{}", lit),
-            OCamlExpr::Var(str) => write!(f, "{}", str),
+            OCamlExpr::Path(p) => write!(f, "{}", p.iter().map(|s| s.to_string()).collect::<Vec<String>>().join(".")),
         }
     }
 }
@@ -114,7 +113,7 @@ fn rust_expr_to_ocaml_expr(expr: &Expr) -> Option<OCamlExpr> {
         Expr::Lit(ExprLit { lit, .. }) => {
             Some(OCamlExpr::Literal(rust_literal_to_ocaml_literal(lit)?))
         }
-        Expr::Path(ExprPath { path, .. }) => Some(OCamlExpr::Var(extract_var_from_rust_ast(path)?)),
+        Expr::Path(ExprPath { path, .. }) => Some(OCamlExpr::Path(extract_var_from_rust_ast(path))),
         _ => todo!("{:#?} is not implemented", expr),
     }
 }
@@ -126,10 +125,18 @@ fn rust_literal_to_ocaml_literal(lit: &Lit) -> Option<OCamlLiteral> {
     }
 }
 
-fn extract_var_from_rust_ast(var: &Path) -> Option<String> {
-    let seg = var.segments.last()?;
-    let ident = &seg.ident;
-    Some(ident.to_string().to_lowercase())
+fn extract_var_from_rust_ast(path: &Path) -> Vec<String> {
+    let mut path: Vec<String> = path
+        .segments
+        .iter()
+        .map(|seg| seg.ident.to_string())
+        .collect();
+
+    if let Some(last) = path.last_mut() {
+        *last = last.to_lowercase();
+    }
+
+    return path
 }
 
 fn extract_type_from_rust_ast(ty: &Type) -> Option<String> {
