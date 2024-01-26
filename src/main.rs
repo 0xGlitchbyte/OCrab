@@ -39,16 +39,24 @@ impl Display for OCaml {
 #[derive(Debug)]
 enum OCamlExpr {
     Literal(OCamlLiteral),
-    Path(Vec<String>), //Unary
-                 //Binary
-                 //Struct
+    Path(Vec<String>),
+    Unary(Box<OCamlUnaryOperator>), //Binary
+                                    //Struct
 }
 
 impl Display for OCamlExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OCamlExpr::Literal(lit) => write!(f, "{}", lit),
-            OCamlExpr::Path(p) => write!(f, "{}", p.iter().map(|s| s.to_string()).collect::<Vec<String>>().join(".")),
+            OCamlExpr::Path(p) => write!(
+                f,
+                "{}",
+                p.iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<String>>()
+                    .join(".")
+            ),
+            OCamlExpr::Unary(unary) => write!(f, "{}", unary),
         }
     }
 }
@@ -65,6 +73,28 @@ impl Display for OCamlLiteral {
         }
     }
 }
+
+#[derive(Debug)]
+enum OCamlUnaryOperator {
+    Minus(OCamlExpr),
+    Deref(OCamlExpr),
+    Not(OCamlExpr),
+}
+
+impl Display for OCamlUnaryOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OCamlUnaryOperator::Minus(neg) => write!(f, "-{}", neg),
+            OCamlUnaryOperator::Not(not) => write!(f, "{}", not),
+            OCamlUnaryOperator::Deref(star) => write!(f, "{}", star),
+        }
+    }
+}
+//#[derive(Debug)]
+//enum OCamlBinaryExpr {
+//    And { left: OCamlExpr, right: OCamlExpr },
+//    Or { left: OCamlExpr, right: OCamlExpr },
+//}
 
 fn main() {
     let filename = "empty.rs";
@@ -136,7 +166,7 @@ fn extract_var_from_rust_ast(path: &Path) -> Vec<String> {
         *last = last.to_lowercase();
     }
 
-    return path
+    return path;
 }
 
 fn extract_type_from_rust_ast(ty: &Type) -> Option<String> {
