@@ -19,10 +19,10 @@ impl Display for OCaml {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OCaml::Let { name, ty, value } => match (ty, value) {
-                (Some(ty), None) => write!(f, "let {} : {}", name.to_lowercase(), ty),
-                (None, Some(value)) => write!(f, "let {} = {}", name.to_lowercase(), value),
+                (Some(ty), None) => write!(f, "let {} : {}", name, ty),
+                (None, Some(value)) => write!(f, "let {} = {}", name, value),
                 (Some(ty), Some(value)) => {
-                    write!(f, "let {} : {} = {}", name.to_lowercase(), ty, value)
+                    write!(f, "let {} : {} = {}", name, ty, value)
                 }
                 (None, None) => Ok(()),
             },
@@ -130,7 +130,7 @@ fn rust_item_to_ocaml_item(item: syn::Item) -> Option<OCaml> {
             ty: ty,
             ..
         }) => Some(OCaml::Let {
-            name: format!("{}", name),
+            name: name.to_string(),
             value: rust_expr_to_ocaml_expr(&value),
             ty: extract_type_from_rust_ast(&ty),
         }),
@@ -150,23 +150,17 @@ fn rust_expr_to_ocaml_expr(expr: &Expr) -> Option<OCamlExpr> {
 
 fn rust_literal_to_ocaml_literal(lit: &Lit) -> Option<OCamlLiteral> {
     match lit {
-        Lit::Int(int) => Some(OCamlLiteral::Number(format!("{}", int))),
+        Lit::Int(int) => Some(OCamlLiteral::Number(int.to_string())),
         _ => todo!("{:#?} is not implemented", lit),
     }
 }
 
 fn extract_var_from_rust_ast(path: &Path) -> Vec<String> {
-    let mut path: Vec<String> = path
+    path
         .segments
         .iter()
         .map(|seg| seg.ident.to_string())
-        .collect();
-
-    if let Some(last) = path.last_mut() {
-        *last = last.to_lowercase();
-    }
-
-    return path;
+        .collect()
 }
 
 fn extract_type_from_rust_ast(ty: &Type) -> Option<String> {
