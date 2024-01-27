@@ -61,12 +61,12 @@ impl Display for OCamlLiteral {
     }
 }
 
-impl Display for OCamlUnaryOperator {
+impl Display for OCamlUnaryExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OCamlUnaryOperator::Minus(neg) => write!(f, "-{}", neg),
-            OCamlUnaryOperator::Not(not) => write!(f, "{}", not),
-            OCamlUnaryOperator::Deref(star) => write!(f, "{}", star),
+            Self::Minus(neg) => write!(f, "-({})", neg),
+            Self::Not(not) => write!(f, "!({})", not),
+            Self::Deref(star) => write!(f, "{}", star),
         }
     }
 }
