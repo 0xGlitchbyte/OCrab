@@ -11,6 +11,7 @@ pub enum OCaml {
     },
     Statements(Vec<OCaml>),
 }
+
 impl OCaml {
     pub fn from_rust_file(file_path: &str) -> Self {
         let mut file = File::open(file_path).expect("Unable to open file");
@@ -39,7 +40,7 @@ impl OCaml {
 pub enum OCamlExpr {
     Literal(OCamlLiteral),
     Path(Vec<String>),
-    Unary(Box<OCamlUnaryOperator>), //Binary
+    Unary(Box<OCamlUnaryExpr>), //Binary
                                     //Struct
 }
 
@@ -49,7 +50,7 @@ pub enum OCamlLiteral {
 }
 
 #[derive(Debug)]
-pub enum OCamlUnaryOperator {
+pub enum OCamlUnaryExpr {
     Minus(OCamlExpr),
     Deref(OCamlExpr),
     Not(OCamlExpr),
@@ -61,24 +62,32 @@ pub enum OCamlUnaryOperator {
 //    Or { left: OCamlExpr, right: OCamlExpr },
 //}
 
-fn extract_var_from_rust_ast(path: &syn::Path) -> Vec<String> {
-    path.segments
+struct SynPath<'a>(&'a syn::Path);
+
+impl From<SynPath<'_>> for Vec<String> {
+    fn from(value: SynPath) -> Self {
+        value.0.segments
         .iter()
         .map(|seg| seg.ident.to_string())
         .collect()
+    }
 }
 
-pub fn extract_type_from_rust_ast(ty: &syn::Type) -> Option<String> {
-    // Type -> Path -> Segements -> PathSegment -> Ident(String)
-    // Type::TypePath::Path::Punctuated{PathSegment{Ident}}
-    match ty {
-        syn::Type::Path(type_path) => {
-            let path = &type_path.path;
-            let seg = path.segments.last()?;
-            let ident = &seg.ident;
-            Some(ident.to_string())
+struct SynType<'a>(&'a syn::Type);
+
+impl SynType<'_> {
+    fn take_last(self) -> Option<String> {
+        let mut paths: Vec<String> = self.into();
+        paths.pop()
+    }
+}
+
+impl From<SynType<'_>> for Vec<String> {
+    fn from(value: SynType) -> Self {
+        match value.0 {
+            syn::Type::Path(path_type) => SynPath(&path_type.path).into(),
+            _ => todo!("{:#?} is not implemented", value.0),
         }
-        _ => todo!("{:#?} is not implemented", ty),
     }
 }
 
@@ -93,7 +102,7 @@ impl From<&syn::Item> for OCaml {
             }) => OCaml::Let {
                 name: name.to_string(),
                 value: Some(value.as_ref().into()),
-                ty: extract_type_from_rust_ast(&ty),
+                ty: SynType(&ty).take_last()
             },
             _ => todo!("{:#?} is not implemented", item),
         }
@@ -104,9 +113,7 @@ impl From<&syn::Expr> for OCamlExpr {
     fn from(value: &syn::Expr) -> Self {
         match value {
             syn::Expr::Lit(syn::ExprLit { lit, .. }) => OCamlExpr::Literal(lit.into()),
-            syn::Expr::Path(syn::ExprPath { path, .. }) => {
-                OCamlExpr::Path(extract_var_from_rust_ast(path))
-            }
+            syn::Expr::Path(syn::ExprPath { path, .. }) => OCamlExpr::Path(SynPath(path).into()),
             _ => todo!("{:#?} is not implemented", value),
         }
     }
