@@ -21,9 +21,7 @@ impl Display for OCaml {
             OCaml::Let { name, ty, value } => match (ty, value) {
                 (Some(ty), None) => write!(f, "let {} : {}", name, ty),
                 (None, Some(value)) => write!(f, "let {} = {}", name, value),
-                (Some(ty), Some(value)) => {
-                    write!(f, "let {} : {} = {}", name, ty, value)
-                }
+                (Some(ty), Some(value)) => write!(f, "let {} : {} = {}", name, ty, value),
                 (None, None) => Ok(()),
             },
             OCaml::Statements(s) => {
@@ -43,10 +41,7 @@ impl Display for OCamlExpr {
             OCamlExpr::Path(p) => write!(
                 f,
                 "{}",
-                p.iter()
-                    .map(|s| s.to_string())
-                    .collect::<Vec<String>>()
-                    .join(".")
+                p.join(".")
             ),
             OCamlExpr::Unary(unary) => write!(f, "{}", unary),
         }
