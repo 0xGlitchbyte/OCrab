@@ -2,6 +2,32 @@ use std::fs::File;
 use std::io::Read;
 use syn;
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum OCamlError {
+    FileNotFound(String),
+    Parse(String),
+    UnableToReadFile(String),
+    // Unknown(String),
+}
+
+impl std::fmt::Display for OCamlError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OCamlError::FileNotFound(file_path) => {
+                write!(f, "File not found: '{}'", file_path)
+            }
+            OCamlError::Parse(file_path) => {
+                write!(f, "Unable to parse file: {}", file_path)
+            }
+            OCamlError::UnableToReadFile(file_path) => {
+                write!(f, "Unable to read file: '{}'", file_path)
+            } // OCamlError::Unknown(error) => {
+              //     write!(f, "Unknown error: {}", error)
+              // }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum OCaml {
     Let {
@@ -13,26 +39,26 @@ pub enum OCaml {
 }
 
 impl OCaml {
-    pub fn from_rust_file(file_path: &str) -> Self {
-        let mut file = File::open(file_path).expect("Unable to open file");
+    pub fn from_rust_file(file_path: &str) -> Result<Self, OCamlError> {
+        let mut file =
+            File::open(file_path).map_err(|_| OCamlError::FileNotFound(file_path.to_string()))?;
 
         let mut src = String::new();
-        file.read_to_string(&mut src).expect("Unable to read file");
+        file.read_to_string(&mut src)
+            .map_err(|_| OCamlError::UnableToReadFile(file_path.to_string()))?;
 
-        let syntax = syn::parse_file(&src).expect("Unable to parse file");
+        let syntax = syn::parse_file(&src).map_err(|e| {
+            OCamlError::Parse(format!("'{}': {}", file_path.to_string(), e.to_string()))
+        })?;
 
         //println!("{:#?}", syntax);
 
-        let syntax_items = syntax
-            .items
-            .iter()
-            .map(|item| item.into())
-            .collect::<Vec<Self>>();
+        let syntax_items: Vec<Self> = syntax.items.iter().map(|item| item.into()).collect();
 
         // Debug impl is available if Syn is built with "extra-traits" feature.
         println!("{:#?}", syntax_items);
 
-        Self::Statements(syntax_items)
+        Ok(Self::Statements(syntax_items))
     }
 }
 
@@ -41,7 +67,7 @@ pub enum OCamlExpr {
     Literal(OCamlLiteral),
     Path(Vec<String>),
     Unary(Box<OCamlUnaryExpr>), //Binary
-                                    //Struct
+                                //Struct
 }
 
 #[derive(Debug)]
@@ -66,10 +92,12 @@ struct SynPath<'a>(&'a syn::Path);
 
 impl From<SynPath<'_>> for Vec<String> {
     fn from(value: SynPath) -> Self {
-        value.0.segments
-        .iter()
-        .map(|seg| seg.ident.to_string())
-        .collect()
+        value
+            .0
+            .segments
+            .iter()
+            .map(|seg| seg.ident.to_string())
+            .collect()
     }
 }
 
@@ -102,7 +130,7 @@ impl From<&syn::Item> for OCaml {
             }) => OCaml::Let {
                 name: name.to_string(),
                 value: Some(value.as_ref().into()),
-                ty: SynType(&ty).take_last()
+                ty: SynType(&ty).take_last(),
             },
             _ => todo!("{:#?} is not implemented", item),
         }
