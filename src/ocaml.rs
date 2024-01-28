@@ -48,7 +48,7 @@ impl OCaml {
             .map_err(|_| OCamlError::UnableToReadFile(file_path.to_string()))?;
 
         let syntax = syn::parse_file(&src).map_err(|e| {
-            OCamlError::Parse(format!("'{}': {}", file_path.to_string(), e.to_string()))
+            OCamlError::Parse(format!("'{}': {}", file_path, e))
         })?;
 
         //println!("{:#?}", syntax);
