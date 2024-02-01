@@ -2,6 +2,8 @@ use std::fs::File;
 use std::io::Read;
 use syn;
 
+const CHAR_BIT: usize = 8;
+
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum OCamlError {
     FileNotFound(String),
@@ -72,7 +74,8 @@ pub enum OCamlExpr {
 
 #[derive(Debug)]
 pub enum OCamlLiteral {
-    Number(String),
+    Integer{ digits: String, width: Option<usize>, is_signed: Option<bool>, is_native: bool },
+    Float{ digits: String, width: Option<usize> },
 }
 
 #[derive(Debug)]
@@ -146,11 +149,104 @@ impl From<&syn::Expr> for OCamlExpr {
         }
     }
 }
+
 impl From<&syn::Lit> for OCamlLiteral {
     fn from(value: &syn::Lit) -> Self {
         match value {
-            syn::Lit::Int(int) => OCamlLiteral::Number(int.to_string()),
+            syn::Lit::Int(int) => int.into(),
+            syn::Lit::Float(float) => float.into(),
             _ => todo!("{:#?} is not implemented", value),
+        }
+    }
+}
+
+fn size_of<T>() -> usize {
+    std::mem::size_of::<T>() * CHAR_BIT
+}
+
+impl From<&syn::LitInt> for OCamlLiteral {
+    fn from(value: &syn::LitInt) -> Self {
+        let suffix = value.suffix();
+        let digits = value.token().to_string();
+        
+        if suffix.is_empty() {
+            return OCamlLiteral::Integer {
+                digits,
+                width: None,
+                is_signed: None,
+                is_native: false
+            }
+        }
+
+        let digits = digits.trim_end_matches(suffix).to_string();
+
+        match suffix {
+            "u8" | "i8" => OCamlLiteral::Integer {
+                digits,
+                width: Some(size_of::<u8>()),
+                is_signed: Some(suffix.starts_with("i")),
+                is_native: false
+            },
+            "u16" | "i16" => OCamlLiteral::Integer {
+                digits,
+                width: Some(size_of::<u16>()),
+                is_signed: Some(suffix.starts_with("i")),
+                is_native: false
+            },
+            "u32" | "i32" => OCamlLiteral::Integer {
+                digits,
+                width: Some(size_of::<u32>()),
+                is_signed: Some(suffix.starts_with("i")),
+                is_native: false
+            },
+            "u64" | "i64" => OCamlLiteral::Integer {
+                digits,
+                width: Some(size_of::<u64>()),
+                is_signed: Some(suffix.starts_with("i")),
+                is_native: false
+            },
+            "u128" | "i128" => OCamlLiteral::Integer {
+                digits,
+                width: Some(size_of::<u128>()),
+                is_signed: Some(suffix.starts_with("i")),
+                is_native: false
+            },
+            "usize" | "isize" => OCamlLiteral::Integer {
+                digits,
+                width: Some(size_of::<usize>()),
+                is_signed: Some(suffix.starts_with("i")),
+                is_native: true
+            },
+            "f32" => OCamlLiteral::Float {
+                digits,
+                width: Some(size_of::<f32>()),
+            },
+            "f64" => OCamlLiteral::Float {
+                digits,
+                width: Some(size_of::<f64>()),
+            },
+            _ => unreachable!("Unknown suffix: {}", suffix)
+        }
+    }
+}
+
+impl From<&syn::LitFloat> for OCamlLiteral {
+    fn from(value: &syn::LitFloat) -> Self {
+        let suffix = value.suffix();
+        let digits = value.base10_digits().to_owned();
+        match suffix {
+            "f32" => OCamlLiteral::Float {
+                digits,
+                width: Some(size_of::<f32>()),
+            },
+            "f64" => OCamlLiteral::Float {
+                digits,
+                width: Some(size_of::<f64>()),
+            },
+            _ => OCamlLiteral::Float {
+                    digits,
+                    width: None,
+                }
         }
     }
 }

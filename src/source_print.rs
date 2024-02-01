@@ -51,7 +51,38 @@ impl Display for OCamlExpr {
 impl Display for OCamlLiteral {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OCamlLiteral::Number(int) => write!(f, "{}", int),
+            OCamlLiteral::Integer{ digits, width, is_signed: _is_signed, is_native } => {
+                // TODO: use is_signed
+                if let Some(width) = width {
+                    match width {
+                        8 => write!(f, "{}", digits),
+                        16 => write!(f, "{}", digits),
+                        32 => write!(f, "{}l", digits),
+                        64 if *is_native == true => write!(f, "{}n", digits),
+                        64 => write!(f, "{}L", digits),
+                        _ => panic!("Unknown width: {}", width),
+                    }
+                } else {
+                    write!(f, "{}", digits)
+                }
+            },
+            OCamlLiteral::Float{ digits, width } => {
+                if let Some(width) = width {
+                    let digits = if !digits.contains(".") {
+                        format!("{}.0", digits)
+                    } else {
+                        digits.to_owned()
+                    };
+
+                    match width {
+                        32 => write!(f, "{}", digits),
+                        64 => write!(f, "{}", digits),
+                        _ => panic!("Unknown width: {}", width),
+                    }
+                } else {
+                    write!(f, "{}", digits)
+                }
+            },
         }
     }
 }
