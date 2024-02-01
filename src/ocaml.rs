@@ -160,10 +160,6 @@ impl From<&syn::Lit> for OCamlLiteral {
     }
 }
 
-fn size_of_in_bits<T>() -> usize {
-    std::mem::size_of::<T>() * CHAR_BIT
-}
-
 impl From<&syn::LitInt> for OCamlLiteral {
     fn from(value: &syn::LitInt) -> Self {
         let suffix = value.suffix();
@@ -179,54 +175,34 @@ impl From<&syn::LitInt> for OCamlLiteral {
         }
 
         let digits = digits.trim_end_matches(suffix).to_string();
+        let type_width = &suffix[1..];
 
-        match suffix {
-            "u8" | "i8" => OCamlLiteral::Integer {
+        if type_width == "size" {
+            return OCamlLiteral::Integer {
                 digits,
-                width: Some(size_of_in_bits::<u8>()),
-                is_signed: Some(suffix.starts_with("i")),
-                is_native: false
-            },
-            "u16" | "i16" => OCamlLiteral::Integer {
-                digits,
-                width: Some(size_of_in_bits::<u16>()),
-                is_signed: Some(suffix.starts_with("i")),
-                is_native: false
-            },
-            "u32" | "i32" => OCamlLiteral::Integer {
-                digits,
-                width: Some(size_of_in_bits::<u32>()),
-                is_signed: Some(suffix.starts_with("i")),
-                is_native: false
-            },
-            "u64" | "i64" => OCamlLiteral::Integer {
-                digits,
-                width: Some(size_of_in_bits::<u64>()),
-                is_signed: Some(suffix.starts_with("i")),
-                is_native: false
-            },
-            "u128" | "i128" => OCamlLiteral::Integer {
-                digits,
-                width: Some(size_of_in_bits::<u128>()),
-                is_signed: Some(suffix.starts_with("i")),
-                is_native: false
-            },
-            "usize" | "isize" => OCamlLiteral::Integer {
-                digits,
-                width: Some(size_of_in_bits::<usize>()),
+                width: None,
                 is_signed: Some(suffix.starts_with("i")),
                 is_native: true
-            },
-            "f32" => OCamlLiteral::Float {
-                digits,
-                width: Some(size_of_in_bits::<f32>()),
-            },
-            "f64" => OCamlLiteral::Float {
-                digits,
-                width: Some(size_of_in_bits::<f64>()),
-            },
-            _ => unreachable!("Unknown suffix: {}", suffix)
+            }
         }
+
+        if let Ok(type_width)  = type_width.parse::<usize>() {
+            if suffix.starts_with("f") {
+                return OCamlLiteral::Float {
+                    digits,
+                    width: Some(type_width),
+                }
+            } else {
+                return OCamlLiteral::Integer {
+                    digits,
+                    width: Some(type_width),
+                    is_signed: Some(suffix.starts_with("i")),
+                    is_native: false
+                }
+            }
+        }
+        
+        unreachable!("Unknown suffix: {}", suffix)
     }
 }
 
@@ -243,17 +219,17 @@ impl From<&syn::LitFloat> for OCamlLiteral {
         }
 
         let digits = digits.trim_end_matches(suffix).to_string();
+        let type_width = &suffix[1..];
 
-        match suffix {
-            "f32" => OCamlLiteral::Float {
-                digits,
-                width: Some(size_of_in_bits::<f32>()),
-            },
-            "f64" => OCamlLiteral::Float {
-                digits,
-                width: Some(size_of_in_bits::<f64>()),
-            },
-            _ => unreachable!("Unknown suffix: {}", suffix)
+        if suffix.starts_with("f") {
+            if let Ok(type_width)  = type_width.parse::<usize>() {
+                return OCamlLiteral::Float {
+                    digits,
+                    width: Some(type_width),
+                }
+            }
         }
+
+        unreachable!("Unknown suffix: {}", suffix)
     }
 }
