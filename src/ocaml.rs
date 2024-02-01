@@ -160,7 +160,7 @@ impl From<&syn::Lit> for OCamlLiteral {
     }
 }
 
-fn size_of<T>() -> usize {
+fn size_of_in_bits<T>() -> usize {
     std::mem::size_of::<T>() * CHAR_BIT
 }
 
@@ -183,47 +183,47 @@ impl From<&syn::LitInt> for OCamlLiteral {
         match suffix {
             "u8" | "i8" => OCamlLiteral::Integer {
                 digits,
-                width: Some(size_of::<u8>()),
+                width: Some(size_of_in_bits::<u8>()),
                 is_signed: Some(suffix.starts_with("i")),
                 is_native: false
             },
             "u16" | "i16" => OCamlLiteral::Integer {
                 digits,
-                width: Some(size_of::<u16>()),
+                width: Some(size_of_in_bits::<u16>()),
                 is_signed: Some(suffix.starts_with("i")),
                 is_native: false
             },
             "u32" | "i32" => OCamlLiteral::Integer {
                 digits,
-                width: Some(size_of::<u32>()),
+                width: Some(size_of_in_bits::<u32>()),
                 is_signed: Some(suffix.starts_with("i")),
                 is_native: false
             },
             "u64" | "i64" => OCamlLiteral::Integer {
                 digits,
-                width: Some(size_of::<u64>()),
+                width: Some(size_of_in_bits::<u64>()),
                 is_signed: Some(suffix.starts_with("i")),
                 is_native: false
             },
             "u128" | "i128" => OCamlLiteral::Integer {
                 digits,
-                width: Some(size_of::<u128>()),
+                width: Some(size_of_in_bits::<u128>()),
                 is_signed: Some(suffix.starts_with("i")),
                 is_native: false
             },
             "usize" | "isize" => OCamlLiteral::Integer {
                 digits,
-                width: Some(size_of::<usize>()),
+                width: Some(size_of_in_bits::<usize>()),
                 is_signed: Some(suffix.starts_with("i")),
                 is_native: true
             },
             "f32" => OCamlLiteral::Float {
                 digits,
-                width: Some(size_of::<f32>()),
+                width: Some(size_of_in_bits::<f32>()),
             },
             "f64" => OCamlLiteral::Float {
                 digits,
-                width: Some(size_of::<f64>()),
+                width: Some(size_of_in_bits::<f64>()),
             },
             _ => unreachable!("Unknown suffix: {}", suffix)
         }
@@ -247,11 +247,11 @@ impl From<&syn::LitFloat> for OCamlLiteral {
         match suffix {
             "f32" => OCamlLiteral::Float {
                 digits,
-                width: Some(size_of::<f32>()),
+                width: Some(size_of_in_bits::<f32>()),
             },
             "f64" => OCamlLiteral::Float {
                 digits,
-                width: Some(size_of::<f64>()),
+                width: Some(size_of_in_bits::<f64>()),
             },
             _ => unreachable!("Unknown suffix: {}", suffix)
         }
