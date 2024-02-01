@@ -53,12 +53,13 @@ impl Display for OCamlLiteral {
         match self {
             OCamlLiteral::Integer{ digits, width, is_signed: _is_signed, is_native } => {
                 // TODO: use is_signed
-                if let Some(width) = width {
+                if *is_native == true {
+                    write!(f, "{}n", digits)
+                } else if let Some(width) = width {
                     match width {
                         8 => write!(f, "{}", digits),
                         16 => write!(f, "{}", digits),
                         32 => write!(f, "{}l", digits),
-                        64 if *is_native == true => write!(f, "{}n", digits),
                         64 => write!(f, "{}L", digits),
                         _ => panic!("Unknown width: {}", width),
                     }
