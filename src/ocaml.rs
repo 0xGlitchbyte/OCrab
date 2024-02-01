@@ -233,7 +233,17 @@ impl From<&syn::LitInt> for OCamlLiteral {
 impl From<&syn::LitFloat> for OCamlLiteral {
     fn from(value: &syn::LitFloat) -> Self {
         let suffix = value.suffix();
-        let digits = value.base10_digits().to_owned();
+        let digits = value.token().to_string();
+
+        if suffix.is_empty() {
+            return OCamlLiteral::Float {
+                digits,
+                width: None,
+            }
+        }
+
+        let digits = digits.trim_end_matches(suffix).to_string();
+
         match suffix {
             "f32" => OCamlLiteral::Float {
                 digits,
@@ -243,10 +253,7 @@ impl From<&syn::LitFloat> for OCamlLiteral {
                 digits,
                 width: Some(size_of::<f64>()),
             },
-            _ => OCamlLiteral::Float {
-                    digits,
-                    width: None,
-                }
+            _ => unreachable!("Unknown suffix: {}", suffix)
         }
     }
 }
