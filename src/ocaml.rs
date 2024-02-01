@@ -289,12 +289,15 @@ mod tests {
 
             const C: c_int = 1;
             const C: c_float = 1.0;
+
+            const A: c_int = 1u128;
+            const A: c_int = 1i128;
         "#;
 
         let syntax = syn::parse_file(source).unwrap();
         let syntax_items: Vec<OCaml> = syntax.items.iter().map(|item| item.into()).collect();
         
-        assert_eq!(syntax_items.len(), 16);
+        assert_eq!(syntax_items.len(), 18);
         assert_eq!(syntax_items[0], parse_literal_helper("A", "c_int", "1", Some(8),  Some(false), false, false));
         assert_eq!(syntax_items[1], parse_literal_helper("A", "c_int", "1", Some(16), Some(false), false, false));
         assert_eq!(syntax_items[2], parse_literal_helper("A", "c_int", "1", Some(32), Some(false), false, false));
@@ -305,11 +308,13 @@ mod tests {
         assert_eq!(syntax_items[7], parse_literal_helper("A", "c_int", "1", Some(32), Some(true ), false, false));
         assert_eq!(syntax_items[8], parse_literal_helper("A", "c_int", "1", Some(64), Some(true ), false, false));
         assert_eq!(syntax_items[9], parse_literal_helper("A", "c_int", "1", None,     Some(true ), true,  false));
-        assert_eq!(syntax_items[10], parse_literal_helper("A", "c_float", "1",   Some(32), None, false, true ));
-        assert_eq!(syntax_items[11], parse_literal_helper("A", "c_float", "1",   Some(64), None, false, true ));
-        assert_eq!(syntax_items[12], parse_literal_helper("B", "c_float", "1.0", Some(32), None, false, true ));
-        assert_eq!(syntax_items[13], parse_literal_helper("B", "c_float", "1.0", Some(64), None, false, true ));
-        assert_eq!(syntax_items[14], parse_literal_helper("C", "c_int",   "1",   None,     None, false, false));
-        assert_eq!(syntax_items[15], parse_literal_helper("C", "c_float", "1.0", None,     None, false, true ));
+        assert_eq!(syntax_items[10], parse_literal_helper("A", "c_float", "1",   Some(32),  None,        false, true ));
+        assert_eq!(syntax_items[11], parse_literal_helper("A", "c_float", "1",   Some(64),  None,        false, true ));
+        assert_eq!(syntax_items[12], parse_literal_helper("B", "c_float", "1.0", Some(32),  None,        false, true ));
+        assert_eq!(syntax_items[13], parse_literal_helper("B", "c_float", "1.0", Some(64),  None,        false, true ));
+        assert_eq!(syntax_items[14], parse_literal_helper("C", "c_int",   "1",   None,      None,        false, false));
+        assert_eq!(syntax_items[15], parse_literal_helper("C", "c_float", "1.0", None,      None,        false, true ));
+        assert_eq!(syntax_items[16], parse_literal_helper("A", "c_int",   "1",   Some(128), Some(false), false, false));
+        assert_eq!(syntax_items[17], parse_literal_helper("A", "c_int",   "1",   Some(128), Some(true ), false, false));
     }
 }
