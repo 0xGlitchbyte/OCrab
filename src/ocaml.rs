@@ -54,7 +54,12 @@ impl OCaml {
         let syntax = syn::parse_file(src)
             .map_err(|e| OCamlError::Parse(format!("'{}': {}", src, e)))?;
 
+        // Rust AST
+        // dbg!(&syntax);
+
         let syntax_items: Vec<Self> = syntax.items.iter().map(|item| item.into()).collect();
+        
+        print!("{:#?}", syntax_items);
 
         Ok(Self::Statements(syntax_items))
     }
