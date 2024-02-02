@@ -86,6 +86,9 @@ impl Display for OCamlLiteral {
                     write!(f, "{}", digits)
                 }
             }
+            OCamlLiteral::Boolean { value} => {
+                write!(f, "{}", value)
+            }
         }
     }
 }
@@ -108,6 +111,8 @@ impl std::fmt::Display for OCamlBinary {
             OCamlBinary::Multiply { left, right } => write!(f, "{left} * {right}"),
             OCamlBinary::Divide { left, right } => write!(f, "{left} / {right}"),
             OCamlBinary::Modulo { left, right } => write!(f, "{left} mod {right}"),
+            OCamlBinary::And { left, right } => write!(f, "{left} && {right}"),
+            OCamlBinary::Or { left, right } => write!(f, "{left} || {right}"),
             _ => todo!("something else again"),
         }
     }

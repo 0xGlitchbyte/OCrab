@@ -84,6 +84,9 @@ pub enum OCamlLiteral {
         digits: String,
         width: Option<usize>,
     },
+    Boolean {
+        value: bool,
+    }
 }
 
 #[derive(Debug, PartialEq, PartialOrd, Ord, Eq)]
@@ -102,6 +105,8 @@ pub enum OCamlBinary {
     Multiply { left: OCamlExpr, right: OCamlExpr },
     Divide { left: OCamlExpr, right: OCamlExpr },
     Modulo { left: OCamlExpr, right: OCamlExpr },
+    And { left: OCamlExpr, right: OCamlExpr },
+    Or { left: OCamlExpr, right: OCamlExpr },
 }
 
 struct SynPath<'a>(&'a syn::Path);
@@ -170,6 +175,7 @@ impl From<&syn::Lit> for OCamlLiteral {
         match value {
             syn::Lit::Int(int) => int.into(),
             syn::Lit::Float(float) => float.into(),
+            syn::Lit::Bool(boolean) => boolean.into(),
             _ => todo!("{:#?} is not implemented", value),
         }
     }
@@ -249,6 +255,12 @@ impl From<&syn::LitFloat> for OCamlLiteral {
     }
 }
 
+impl From<&syn::LitBool> for OCamlLiteral {
+    fn from(value: &syn::LitBool) -> Self {
+        OCamlLiteral::Boolean { value: value.value }
+    }
+}
+
 impl From<&syn::ExprUnary> for OCamlUnary {
     fn from(value: &syn::ExprUnary) -> Self {
         match value.op {
@@ -281,6 +293,14 @@ impl From<&syn::ExprBinary> for OCamlBinary {
                 right: value.right.as_ref().into(),
             },
             syn::BinOp::Rem(_) => OCamlBinary::Modulo {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::And(_) => OCamlBinary::And {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::Or(_) => OCamlBinary::Or {
                 left: value.left.as_ref().into(),
                 right: value.right.as_ref().into(),
             },
