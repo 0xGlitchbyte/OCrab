@@ -247,7 +247,7 @@ impl From<&syn::ExprUnary> for OCamlUnary {
         match value.op {
             syn::UnOp::Deref(_) => todo!(),
             syn::UnOp::Not(_) => todo!(),
-            syn::UnOp::Neg(minus, ..) => OCamlUnary::Minus(value.expr.as_ref().into()),
+            syn::UnOp::Neg(minus, ..) => OCamlUnary::Minus((&*value.expr).into()),
             _ => todo!(),
         }
     }
