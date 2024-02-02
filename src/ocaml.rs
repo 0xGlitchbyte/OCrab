@@ -69,7 +69,7 @@ pub enum OCamlExpr {
     Path(Vec<String>),
     Unary(Box<OCamlUnary>),
     Binary(Box<OCamlBinary>),
-                            //Struct
+    //Struct
 }
 
 #[derive(Debug, PartialEq, PartialOrd, Ord, Eq)]
@@ -95,8 +95,8 @@ pub enum OCamlUnary {
 
 #[derive(Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub enum OCamlBinary {
-    And { left: OCamlExpr, right: OCamlExpr },
-    Or { left: OCamlExpr, right: OCamlExpr },
+    //    And { left: OCamlExpr, right: OCamlExpr },
+    //    Or { left: OCamlExpr, right: OCamlExpr },
     Plus { left: OCamlExpr, right: OCamlExpr },
 }
 
@@ -259,8 +259,9 @@ impl From<&syn::ExprUnary> for OCamlUnary {
 impl From<&syn::ExprBinary> for OCamlBinary {
     fn from(value: &syn::ExprBinary) -> Self {
         match value.op {
-            syn::BinOp::Add(_)  => {
-                OCamlBinary::Plus {left: value.left.as_ref().into(), right: value.right.as_ref().into()}
+            syn::BinOp::Add(_) => OCamlBinary::Plus {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
             },
             _ => unimplemented!("{:#?} is not implemented", value),
         }
@@ -405,4 +406,3 @@ mod tests {
         );
     }
 }
-

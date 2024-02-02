@@ -103,7 +103,7 @@ impl Display for OCamlUnary {
 impl std::fmt::Display for OCamlBinary {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OCamlBinary::Plus {left, right} => write!(f, "{left} + {right}"),
+            OCamlBinary::Plus { left, right } => write!(f, "{left} + {right}"),
             _ => todo!("something else again"),
         }
     }
