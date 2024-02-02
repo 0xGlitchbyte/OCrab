@@ -52,7 +52,7 @@ impl OCaml {
         let syntax = syn::parse_file(&src)
             .map_err(|e| OCamlError::Parse(format!("'{}': {}", file_path, e)))?;
 
-        println!("{:#?}", syntax);
+        //println!("{:#?}", syntax);
 
         let syntax_items: Vec<Self> = syntax.items.iter().map(|item| item.into()).collect();
 
@@ -245,9 +245,9 @@ impl From<&syn::LitFloat> for OCamlLiteral {
 impl From<&syn::ExprUnary> for OCamlUnary {
     fn from(value: &syn::ExprUnary) -> Self {
         match value.op {
-            syn::UnOp::Deref(_) => todo!(),
-            syn::UnOp::Not(_) => todo!(),
-            syn::UnOp::Neg(minus, ..) => OCamlUnary::Minus(value.expr.as_ref().into()),
+            syn::UnOp::Deref(_) => OCamlUnary::Deref(value.expr.as_ref().into()),
+            syn::UnOp::Not(_) => OCamlUnary::Not(value.expr.as_ref().into()),
+            syn::UnOp::Neg(_) => OCamlUnary::Minus(value.expr.as_ref().into()),
             _ => todo!(),
         }
     }
