@@ -98,6 +98,10 @@ pub enum OCamlBinary {
     //    And { left: OCamlExpr, right: OCamlExpr },
     //    Or { left: OCamlExpr, right: OCamlExpr },
     Plus { left: OCamlExpr, right: OCamlExpr },
+    Minus { left: OCamlExpr, right: OCamlExpr },
+    Multiply { left: OCamlExpr, right: OCamlExpr },
+    Divide { left: OCamlExpr, right: OCamlExpr },
+    Modulo { left: OCamlExpr, right: OCamlExpr },
 }
 
 struct SynPath<'a>(&'a syn::Path);
@@ -257,9 +261,26 @@ impl From<&syn::ExprUnary> for OCamlUnary {
 }
 
 impl From<&syn::ExprBinary> for OCamlBinary {
+    // this doesn't support float vs int operators (or does it?!!!!!!!!!!!!!!!!!)
     fn from(value: &syn::ExprBinary) -> Self {
         match value.op {
             syn::BinOp::Add(_) => OCamlBinary::Plus {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::Sub(_) => OCamlBinary::Minus {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::Mul(_) => OCamlBinary::Multiply {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::Div(_) => OCamlBinary::Divide {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::Rem(_) => OCamlBinary::Modulo {
                 left: value.left.as_ref().into(),
                 right: value.right.as_ref().into(),
             },

@@ -104,6 +104,10 @@ impl std::fmt::Display for OCamlBinary {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OCamlBinary::Plus { left, right } => write!(f, "{left} + {right}"),
+            OCamlBinary::Minus { left, right } => write!(f, "{left} - {right}"),
+            OCamlBinary::Multiply { left, right } => write!(f, "{left} * {right}"),
+            OCamlBinary::Divide { left, right } => write!(f, "{left} / {right}"),
+            OCamlBinary::Modulo { left, right } => write!(f, "{left} mod {right}"),
             _ => todo!("something else again"),
         }
     }
