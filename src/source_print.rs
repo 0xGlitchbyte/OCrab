@@ -90,7 +90,6 @@ impl Display for OCamlLiteral {
             OCamlLiteral::Bool(b) => write!(f, "{}", b),
             OCamlLiteral::Byte(b) => write!(f, "'\\x{:02x}'", b),
             OCamlLiteral::ByteStr(bs) => write!(f, "Bytes.of_string \"{}\"", bs.iter().map(|b| format!("\\x{:02x}", b)).collect::<String>()),
-            OCamlLiteral::Verbatim(s) => write!(f, "{}", s),
         }
     }
 }

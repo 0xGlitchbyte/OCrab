@@ -90,7 +90,6 @@ pub enum OCamlLiteral {
     String(String),
     Byte(u8),
     ByteStr(Vec<u8>),
-    Verbatim(String),
 }
 
 #[derive(Debug, PartialEq, PartialOrd, Ord, Eq)]
@@ -176,7 +175,6 @@ impl From<&syn::Lit> for OCamlLiteral {
             syn::Lit::Str(s) => OCamlLiteral::String(s.value()),
             syn::Lit::Byte(b) => OCamlLiteral::Byte(b.value()),
             syn::Lit::ByteStr(b) => OCamlLiteral::ByteStr(b.value()),
-            syn::Lit::Verbatim(v) => OCamlLiteral::Verbatim(v.to_string()),
             _ => todo!("{:#?} is not implemented", value),
         }
     }
