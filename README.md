@@ -6,7 +6,7 @@ Specifically, the goal is to take in the [Rust Raw Libc FFI bindings]() and turn
 
 ## TODO:
 - [X] modularising the code 
-- [ ] Unary operations
+- [X] Unary operations
 - [ ] Binary types
 - [ ] Transform variables/types to lowercase?
 - [ ] Structs 
