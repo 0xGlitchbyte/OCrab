@@ -69,8 +69,9 @@ impl OCaml {
 pub enum OCamlExpr {
     Literal(OCamlLiteral),
     Path(Vec<String>),
-    Unary(Box<OCamlUnary>), //Binary
-                            //Struct
+    Unary(Box<OCamlUnary>),
+    Binary(Box<OCamlBinary>),
+    //Struct
 }
 
 #[derive(Debug, PartialEq, PartialOrd, Ord, Eq)]
@@ -99,11 +100,18 @@ pub enum OCamlUnary {
     Not(OCamlExpr),
 }
 
-//#[derive(Debug)]
-//enum OCamlBinaryExpr {
-//    And { left: OCamlExpr, right: OCamlExpr },
-//    Or { left: OCamlExpr, right: OCamlExpr },
-//}
+#[derive(Debug, PartialEq, PartialOrd, Ord, Eq)]
+pub enum OCamlBinary {
+    //    And { left: OCamlExpr, right: OCamlExpr },
+    //    Or { left: OCamlExpr, right: OCamlExpr },
+    Plus { left: OCamlExpr, right: OCamlExpr },
+    Minus { left: OCamlExpr, right: OCamlExpr },
+    Multiply { left: OCamlExpr, right: OCamlExpr },
+    Divide { left: OCamlExpr, right: OCamlExpr },
+    Modulo { left: OCamlExpr, right: OCamlExpr },
+    And { left: OCamlExpr, right: OCamlExpr },
+    Or { left: OCamlExpr, right: OCamlExpr },
+}
 
 struct SynPath<'a>(&'a syn::Path);
 
@@ -160,6 +168,7 @@ impl From<&syn::Expr> for OCamlExpr {
             syn::Expr::Lit(syn::ExprLit { lit, .. }) => OCamlExpr::Literal(lit.into()),
             syn::Expr::Path(syn::ExprPath { path, .. }) => OCamlExpr::Path(SynPath(path).into()),
             syn::Expr::Unary(unary) => OCamlExpr::Unary(Box::new(unary.into())),
+            syn::Expr::Binary(expr) => OCamlExpr::Binary(Box::new(expr.into())),
             _ => todo!("{:#?} is not implemented", value),
         }
     }
@@ -254,6 +263,12 @@ impl From<&syn::LitFloat> for OCamlLiteral {
     }
 }
 
+impl From<&syn::LitBool> for OCamlLiteral {
+    fn from(value: &syn::LitBool) -> Self {
+        OCamlLiteral::Boolean { value: value.value }
+    }
+}
+
 impl From<&syn::ExprUnary> for OCamlUnary {
     fn from(value: &syn::ExprUnary) -> Self {
         match value.op {
@@ -264,6 +279,44 @@ impl From<&syn::ExprUnary> for OCamlUnary {
         }
     }
 }
+
+impl From<&syn::ExprBinary> for OCamlBinary {
+    // this doesn't support float vs int operators (or does it?!!!!!!!!!!!!!!!!!)
+    fn from(value: &syn::ExprBinary) -> Self {
+        match value.op {
+            syn::BinOp::Add(_) => OCamlBinary::Plus {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::Sub(_) => OCamlBinary::Minus {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::Mul(_) => OCamlBinary::Multiply {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::Div(_) => OCamlBinary::Divide {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::Rem(_) => OCamlBinary::Modulo {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::And(_) => OCamlBinary::And {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::Or(_) => OCamlBinary::Or {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            _ => unimplemented!("{:#?} is not implemented", value),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -490,4 +543,3 @@ mod tests {
 
     }
 }
-
