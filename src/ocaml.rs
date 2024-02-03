@@ -29,10 +29,20 @@ impl std::fmt::Display for OCamlError {
 }
 
 #[derive(Debug, PartialEq, PartialOrd, Ord, Eq)]
+pub enum OCamlType {
+    Pointer{ ty: Box<OCamlType>, is_const: bool },
+    Array{ ty: Box<OCamlType>, size: Option<usize> },
+    Function{ args: Vec<OCamlType>, ret: Box<OCamlType> },
+    Path(Vec<String>),
+    Tuple(Vec<OCamlType>),
+    Verbatim(String),
+}
+
+#[derive(Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub enum OCaml {
     Let {
         name: String,
-        ty: Option<String>,
+        ty: Option<OCamlType>,
         value: Option<OCamlExpr>,
     },
     Statements(Vec<OCaml>),
@@ -72,6 +82,15 @@ pub enum OCamlExpr {
     Unary(Box<OCamlUnary>),
     Binary(Box<OCamlBinary>),
     //Struct
+}
+
+impl OCamlExpr {
+    pub fn eval_to_int(&self) -> Option<usize> {
+        match self {
+            OCamlExpr::Literal(OCamlLiteral::Integer { digits, .. }) => digits.parse().ok(),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, PartialOrd, Ord, Eq)]
@@ -120,6 +139,19 @@ pub enum OCamlBinary {
     Ne { left: OCamlExpr, right: OCamlExpr },
     Gt { left: OCamlExpr, right: OCamlExpr },
     Ge { left: OCamlExpr, right: OCamlExpr },
+
+    // Phantom operations that will be optimized out after the AST
+    // is transformed into the OCaml AST
+    AddAssign { left: OCamlExpr, right: OCamlExpr },
+    SubAssign { left: OCamlExpr, right: OCamlExpr },
+    MulAssign { left: OCamlExpr, right: OCamlExpr },
+    DivAssign { left: OCamlExpr, right: OCamlExpr },
+    RemAssign { left: OCamlExpr, right: OCamlExpr },
+    BitXorAssign { left: OCamlExpr, right: OCamlExpr },
+    BitAndAssign { left: OCamlExpr, right: OCamlExpr },
+    BitOrAssign { left: OCamlExpr, right: OCamlExpr },
+    ShlAssign { left: OCamlExpr, right: OCamlExpr },
+    ShrAssign { left: OCamlExpr, right: OCamlExpr },
 }
 
 struct SynPath<'a>(&'a syn::Path);
@@ -135,19 +167,59 @@ impl From<SynPath<'_>> for Vec<String> {
     }
 }
 
-struct SynType<'a>(&'a syn::Type);
+struct SynReturnType<'a>(&'a syn::ReturnType);
 
-impl SynType<'_> {
-    fn take_last(self) -> Option<String> {
-        let mut paths: Vec<String> = self.into();
-        paths.pop()
+impl From<SynReturnType<'_>> for OCamlType {
+    fn from(value: SynReturnType) -> Self {
+        match value.0 {
+            syn::ReturnType::Type(_, ty) => SynType(&*ty).into(),
+            syn::ReturnType::Default => OCamlType::Verbatim("unit".to_string()),
+            _ => todo!("{:#?} is not implemented", value.0),
+        }
     }
 }
 
-impl From<SynType<'_>> for Vec<String> {
+struct SynType<'a>(&'a syn::Type);
+
+impl From<SynType<'_>> for OCamlType {
     fn from(value: SynType) -> Self {
         match value.0 {
-            syn::Type::Path(path_type) => SynPath(&path_type.path).into(),
+            syn::Type::Path(path_type) => OCamlType::Path(SynPath(&path_type.path).into()),
+            syn::Type::Ptr(ty) => OCamlType::Pointer {
+                ty: Box::new(SynType(&ty.elem).into()),
+                is_const: ty.const_token.is_some(),
+            },
+            syn::Type::Array(ty) => {
+                let len_expr: OCamlExpr = (&ty.len).into();
+                OCamlType::Array {
+                    ty: Box::new(SynType(&ty.elem).into()),
+                    size: len_expr.eval_to_int(),
+                }
+            },
+            syn::Type::BareFn(ty) => {
+                let args: Vec<OCamlType> = ty
+                    .inputs
+                    .iter()
+                    .map(|arg| SynType(&arg.ty).into())
+                    .collect();
+                let ret = Box::new(SynReturnType(&ty.output).into());
+                OCamlType::Function { args, ret }
+            },
+            syn::Type::Verbatim(ty) => OCamlType::Verbatim(ty.to_string()),
+            syn::Type::Slice(ty) => OCamlType::Array {
+                ty: Box::new(SynType(&ty.elem).into()),
+                size: None,
+            },
+            syn::Type::Reference(ty) => OCamlType::Pointer {
+                ty: Box::new(SynType(&ty.elem).into()),
+                is_const: ty.mutability.is_none(),
+            },
+            syn::Type::Tuple(ty) => OCamlType::Tuple(
+                ty.elems
+                    .iter()
+                    .map(|elem| SynType(elem).into())
+                    .collect(),
+            ),
             _ => todo!("{:#?} is not implemented", value.0),
         }
     }
@@ -164,7 +236,7 @@ impl From<&syn::Item> for OCaml {
             }) => OCaml::Let {
                 name: name.to_string(),
                 value: Some(value.as_ref().into()),
-                ty: SynType(&ty).take_last(),
+                ty: Some(SynType(&ty).into()),
             },
             _ => todo!("{:#?} is not implemented", item),
         }
@@ -198,6 +270,20 @@ impl From<&syn::Lit> for OCamlLiteral {
     }
 }
 
+pub(crate) fn size_from_rust_basic_number_type(ty: &str) -> (u8, Option<usize>) {
+    let type_width = &ty[1..];
+    if ty.starts_with('f'){
+        return (b'f', type_width.parse().ok());
+    }
+
+    let prefix = if ty.starts_with('i') { b'i' } else { b'u' };
+    if type_width == "size" {
+        return (prefix, None);
+    }
+
+    (prefix, type_width.parse().ok())
+}
+
 impl From<&syn::LitInt> for OCamlLiteral {
     fn from(value: &syn::LitInt) -> Self {
         let suffix = value.suffix();
@@ -213,34 +299,32 @@ impl From<&syn::LitInt> for OCamlLiteral {
         }
 
         let digits = digits.trim_end_matches(suffix).to_string();
-        let type_width = &suffix[1..];
 
-        if type_width == "size" {
+        let (prefix, width) = size_from_rust_basic_number_type(suffix);
+        let is_signed = if prefix == b'i' { true } else { false };
+
+        if let None = width {
             return OCamlLiteral::Integer {
                 digits,
                 width: None,
-                is_signed: Some(suffix.starts_with("i")),
+                is_signed: Some(is_signed),
                 is_native: true,
             };
         }
 
-        if let Ok(type_width) = type_width.parse::<usize>() {
-            if suffix.starts_with("f") {
-                return OCamlLiteral::Float {
-                    digits,
-                    width: Some(type_width),
-                };
-            } else {
-                return OCamlLiteral::Integer {
-                    digits,
-                    width: Some(type_width),
-                    is_signed: Some(suffix.starts_with("i")),
-                    is_native: false,
-                };
+       return if prefix == b'f' {
+            OCamlLiteral::Float {
+                digits,
+                width,
+            }
+        } else {
+            OCamlLiteral::Integer {
+                digits,
+                width,
+                is_signed: Some(is_signed),
+                is_native: false,
             }
         }
-
-        unreachable!("Unknown suffix: {}", suffix)
     }
 }
 
@@ -257,15 +341,13 @@ impl From<&syn::LitFloat> for OCamlLiteral {
         }
 
         let digits = digits.trim_end_matches(suffix).to_string();
-        let type_width = &suffix[1..];
+        let (prefix, width) = size_from_rust_basic_number_type(suffix);
 
-        if suffix.starts_with("f") {
-            if let Ok(type_width) = type_width.parse::<usize>() {
-                return OCamlLiteral::Float {
-                    digits,
-                    width: Some(type_width),
-                };
-            }
+        if prefix == b'f' && width.is_some() {
+            return OCamlLiteral::Float {
+                digits,
+                width,
+            };
         }
 
         unreachable!("Unknown suffix: {}", suffix)
@@ -283,82 +365,47 @@ impl From<&syn::ExprUnary> for OCamlUnary {
     }
 }
 
+macro_rules! impl_from_expr_binary {
+    ($value:expr, $ocaml:ident) => {
+        OCamlBinary::$ocaml {
+            left: $value.left.as_ref().into(),
+            right: $value.right.as_ref().into(),
+        }
+    };
+}
+
 impl From<&syn::ExprBinary> for OCamlBinary {
     // this doesn't support float vs int operators (or does it?!!!!!!!!!!!!!!!!!)
     fn from(value: &syn::ExprBinary) -> Self {
         match value.op {
-            syn::BinOp::Add(_) => OCamlBinary::Plus {
-                left: value.left.as_ref().into(),
-                right: value.right.as_ref().into(),
-            },
-            syn::BinOp::Sub(_) => OCamlBinary::Minus {
-                left: value.left.as_ref().into(),
-                right: value.right.as_ref().into(),
-            },
-            syn::BinOp::Mul(_) => OCamlBinary::Multiply {
-                left: value.left.as_ref().into(),
-                right: value.right.as_ref().into(),
-            },
-            syn::BinOp::Div(_) => OCamlBinary::Divide {
-                left: value.left.as_ref().into(),
-                right: value.right.as_ref().into(),
-            },
-            syn::BinOp::Rem(_) => OCamlBinary::Modulo {
-                left: value.left.as_ref().into(),
-                right: value.right.as_ref().into(),
-            },
-            syn::BinOp::And(_) => OCamlBinary::And {
-                left: value.left.as_ref().into(),
-                right: value.right.as_ref().into(),
-            },
-            syn::BinOp::Or(_) => OCamlBinary::Or {
-                left: value.left.as_ref().into(),
-                right: value.right.as_ref().into(),
-            },
-            syn::BinOp::BitAnd(_) => OCamlBinary::BitAnd {
-                left: value.left.as_ref().into(),
-                right: value.right.as_ref().into(),
-            },
-            syn::BinOp::BitXor(_) => OCamlBinary::BitXor {
-                left: value.left.as_ref().into(),
-                right: value.right.as_ref().into(),
-            },
-            syn::BinOp::BitOr(_) => OCamlBinary::BitOr {
-                left: value.left.as_ref().into(),
-                right: value.right.as_ref().into(),
-            },
-            syn::BinOp::Shl(_) => OCamlBinary::Shl {
-                left: value.left.as_ref().into(),
-                right: value.right.as_ref().into(),
-            },
-            syn::BinOp::Shr(_) => OCamlBinary::Shr {
-                left: value.left.as_ref().into(),
-                right: value.right.as_ref().into(),
-            },
-            syn::BinOp::Eq(_) => OCamlBinary::Eq {
-                left: value.left.as_ref().into(),
-                right: value.right.as_ref().into(),
-            },
-            syn::BinOp::Lt(_) => OCamlBinary::Lt {
-                left: value.left.as_ref().into(),
-                right: value.right.as_ref().into(),
-            },
-            syn::BinOp::Le(_) => OCamlBinary::Le {
-                left: value.left.as_ref().into(),
-                right: value.right.as_ref().into(),
-            },
-            syn::BinOp::Ne(_) => OCamlBinary::Ne {
-                left: value.left.as_ref().into(),
-                right: value.right.as_ref().into(),
-            },
-            syn::BinOp::Gt(_) => OCamlBinary::Gt {
-                left: value.left.as_ref().into(),
-                right: value.right.as_ref().into(),
-            },
-            syn::BinOp::Ge(_) => OCamlBinary::Ge {
-                left: value.left.as_ref().into(),
-                right: value.right.as_ref().into(),
-            },
+            syn::BinOp::Add(_) => impl_from_expr_binary!(value, Plus),
+            syn::BinOp::Sub(_) => impl_from_expr_binary!(value, Minus),
+            syn::BinOp::Mul(_) => impl_from_expr_binary!(value, Multiply),
+            syn::BinOp::Div(_) => impl_from_expr_binary!(value, Divide),
+            syn::BinOp::Rem(_) => impl_from_expr_binary!(value, Modulo),
+            syn::BinOp::And(_) => impl_from_expr_binary!(value, And),
+            syn::BinOp::Or(_) => impl_from_expr_binary!(value, Or),
+            syn::BinOp::BitAnd(_) => impl_from_expr_binary!(value, BitAnd),
+            syn::BinOp::BitXor(_) => impl_from_expr_binary!(value, BitXor),
+            syn::BinOp::BitOr(_) => impl_from_expr_binary!(value, BitOr),
+            syn::BinOp::Shl(_) => impl_from_expr_binary!(value, Shl),
+            syn::BinOp::Shr(_) => impl_from_expr_binary!(value, Shr),
+            syn::BinOp::Eq(_) => impl_from_expr_binary!(value, Eq),
+            syn::BinOp::Lt(_) => impl_from_expr_binary!(value, Lt),
+            syn::BinOp::Le(_) => impl_from_expr_binary!(value, Le),
+            syn::BinOp::Ne(_) => impl_from_expr_binary!(value, Ne),
+            syn::BinOp::Gt(_) => impl_from_expr_binary!(value, Gt),
+            syn::BinOp::Ge(_) => impl_from_expr_binary!(value, Ge),
+            syn::BinOp::AddAssign(_) => impl_from_expr_binary!(value, AddAssign),
+            syn::BinOp::SubAssign(_) => impl_from_expr_binary!(value, SubAssign),
+            syn::BinOp::MulAssign(_) => impl_from_expr_binary!(value, MulAssign),
+            syn::BinOp::DivAssign(_) => impl_from_expr_binary!(value, DivAssign),
+            syn::BinOp::RemAssign(_) => impl_from_expr_binary!(value, RemAssign),
+            syn::BinOp::BitXorAssign(_) => impl_from_expr_binary!(value, BitXorAssign),
+            syn::BinOp::BitAndAssign(_) => impl_from_expr_binary!(value, BitAndAssign),
+            syn::BinOp::BitOrAssign(_) => impl_from_expr_binary!(value, BitOrAssign),
+            syn::BinOp::ShlAssign(_) => impl_from_expr_binary!(value, ShlAssign),
+            syn::BinOp::ShrAssign(_) => impl_from_expr_binary!(value, ShrAssign),
             _ => unimplemented!("{:#?} is not implemented", value),
         }
     }
@@ -366,6 +413,8 @@ impl From<&syn::ExprBinary> for OCamlBinary {
 
 #[cfg(test)]
 mod tests {
+    use std::vec;
+
     use super::*;
 
     fn parse_number_literal_helper(
@@ -393,7 +442,7 @@ mod tests {
 
         OCaml::Let {
             name: name.to_string(),
-            ty: Some(ty.to_string()),
+            ty: Some(OCamlType::Path(vec![ty.to_string()])),
             value: Some(OCamlExpr::Literal(lit)),
         }
     }
@@ -523,7 +572,7 @@ mod tests {
             syntax_items[0],
             OCaml::Let {
                 name: "BYTES_STRING".to_string(),
-                ty: Some("c_str".to_string()),
+                ty: Some(OCamlType::Path(vec!["c_str".to_string()])),
                 value: Some(OCamlExpr::Literal(OCamlLiteral::ByteStr(
                     "Hello, World!".as_bytes().to_vec()
                 ))),
@@ -534,7 +583,7 @@ mod tests {
             syntax_items[1],
             OCaml::Let {
                 name: "STRING".to_string(),
-                ty: Some("c_str".to_string()),
+                ty: Some(OCamlType::Path(vec!["c_str".to_string()])),
                 value: Some(OCamlExpr::Literal(OCamlLiteral::String(
                     "Hello, World!".to_string()
                 ))),
@@ -545,7 +594,7 @@ mod tests {
             syntax_items[2],
             OCaml::Let {
                 name: "CHAR".to_string(),
-                ty: Some("c_char".to_string()),
+                ty: Some(OCamlType::Path(vec!["c_char".to_string()])),
                 value: Some(OCamlExpr::Literal(OCamlLiteral::Char('a'))),
             }
         );
@@ -554,7 +603,7 @@ mod tests {
             syntax_items[3],
             OCaml::Let {
                 name: "BOOL".to_string(),
-                ty: Some("c_bool".to_string()),
+                ty: Some(OCamlType::Path(vec!["c_bool".to_string()])),
                 value: Some(OCamlExpr::Literal(OCamlLiteral::Bool(true))),
             }
         );
@@ -563,7 +612,7 @@ mod tests {
             syntax_items[4],
             OCaml::Let {
                 name: "BOOL".to_string(),
-                ty: Some("c_bool".to_string()),
+                ty: Some(OCamlType::Path(vec!["c_bool".to_string()])),
                 value: Some(OCamlExpr::Literal(OCamlLiteral::Bool(false))),
             }
         );
@@ -572,7 +621,7 @@ mod tests {
             syntax_items[5],
             OCaml::Let {
                 name: "BYTE".to_string(),
-                ty: Some("c_uchar".to_string()),
+                ty: Some(OCamlType::Path(vec!["c_uchar".to_string()])),
                 value: Some(OCamlExpr::Literal(OCamlLiteral::Byte(b'a'))),
             }
         );
@@ -581,7 +630,7 @@ mod tests {
             syntax_items[6],
             OCaml::Let {
                 name: "RAW_STRING".to_string(),
-                ty: Some("c_str".to_string()),
+                ty: Some(OCamlType::Path(vec!["c_str".to_string()])),
                 value: Some(OCamlExpr::Literal(OCamlLiteral::String(
                     "Hello, World!".to_string()
                 ))),

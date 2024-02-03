@@ -34,6 +34,64 @@ impl Display for OCaml {
     }
 }
 
+fn to_ocaml_type(ty: &str) -> String {
+    if !(ty.starts_with('f') || ty.starts_with('i') || ty.starts_with('u')) {
+        return ty.to_string();
+    }
+
+    let (prefix, width) = size_from_rust_basic_number_type(ty);
+    if prefix == b'f' {
+        return format!("float")
+    }
+
+    if let Some(width) = width {
+        match width {
+            8 => format!("char"),
+            16 => format!("int"),
+            32 => format!("int32"),
+            64 => format!("int64"),
+            _ => panic!("Unknown width: {}", width),
+        }
+    } else {
+        format!("nativeint")
+    }
+}
+
+impl Display for OCamlType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OCamlType::Pointer { ty, is_const: _is_const } => write!(f, "ref {}", ty),
+            OCamlType::Array { ty, size } => write!(f, "{} array", ty),
+            OCamlType::Function { args, ret } => {
+                for ty in args.iter() {
+                    write!(f, "{} -> ", ty)?;
+                }
+                write!(f, "{}", ret)
+            },
+            OCamlType::Path(p) => {
+                for part in p.iter().take(p.len() - 1) {
+                    write!(f, "{}.", part)?;
+                }
+
+                if let Some(last) = p.last() {
+                    write!(f, "{}", to_ocaml_type(last))?;
+                }
+                Ok(())
+            },
+            OCamlType::Tuple(t) => {
+                for (index, ty) in t.iter().enumerate() {
+                    write!(f, "{}", ty)?;
+                    if index < t.len() - 1 {
+                        write!(f, " * ")?;
+                    }
+                }
+                Ok(())
+            },
+            OCamlType::Verbatim(ty) => write!(f, "{}", ty),
+        }
+    }
+}
+
 impl Display for OCamlExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -59,7 +117,7 @@ impl Display for OCamlLiteral {
                     write!(f, "{}n", digits)
                 } else if let Some(width) = width {
                     match width {
-                        8 => write!(f, "{}", digits),
+                        8 => write!(f, "'\\x{:02x}'", digits.parse::<u8>().unwrap()),
                         16 => write!(f, "{}", digits),
                         32 => write!(f, "{}l", digits),
                         64 => write!(f, "{}L", digits),
@@ -108,14 +166,40 @@ impl Display for OCamlUnary {
 impl std::fmt::Display for OCamlBinary {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OCamlBinary::Plus { left, right } => write!(f, "{left} + {right}"),
-            OCamlBinary::Minus { left, right } => write!(f, "{left} - {right}"),
-            OCamlBinary::Multiply { left, right } => write!(f, "{left} * {right}"),
-            OCamlBinary::Divide { left, right } => write!(f, "{left} / {right}"),
-            OCamlBinary::Modulo { left, right } => write!(f, "{left} mod {right}"),
-            OCamlBinary::And { left, right } => write!(f, "{left} && {right}"),
-            OCamlBinary::Or { left, right } => write!(f, "{left} || {right}"),
-            _ => todo!("something else again"),
+            // ========================= Binary Operations Based on Types =========================
+            // TODO: Detect the type of the left and right and use the correct binary operator
+            OCamlBinary::Plus { left, right } => write!(f, "({left} + {right})"),
+            OCamlBinary::Minus { left, right } => write!(f, "({left} - {right})"),
+            OCamlBinary::Multiply { left, right } => write!(f, "({left} * {right})"),
+            OCamlBinary::Divide { left, right } => write!(f, "({left} / {right})"),
+            OCamlBinary::Eq { left, right } => write!(f, "({left} = {right})"),
+            OCamlBinary::Ne { left, right } => write!(f, "({left} <> {right})"),
+
+            // =====================================================================================
+
+            OCamlBinary::Modulo { left, right } => write!(f, "({left} mod {right})"),
+            OCamlBinary::And { left, right } => write!(f, "({left} && {right})"),
+            OCamlBinary::Or { left, right } => write!(f, "({left} || {right})"),
+            OCamlBinary::BitXor { left, right } => write!(f, "({left} lxor {right})"),
+            OCamlBinary::BitAnd { left, right } => write!(f, "({left} land {right})"),
+            OCamlBinary::BitOr { left, right } => write!(f, "({left} lor {right})"),
+            OCamlBinary::Shl { left, right } => write!(f, "({left} lsl {right})"),
+            OCamlBinary::Shr { left, right } => write!(f, "({left} lsr {right})"),
+            OCamlBinary::Lt { left, right } => write!(f, "({left} < {right})"),
+            OCamlBinary::Le { left, right } => write!(f, "({left} <= {right})"),
+            OCamlBinary::Gt { left, right } => write!(f, "({left} > {right})"),
+            OCamlBinary::Ge { left, right } => write!(f, "({left} >= {right})"),
+            OCamlBinary::AddAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            OCamlBinary::SubAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            OCamlBinary::MulAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            OCamlBinary::DivAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            OCamlBinary::RemAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            OCamlBinary::BitXorAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            OCamlBinary::BitAndAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            OCamlBinary::BitOrAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            OCamlBinary::ShlAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            OCamlBinary::ShrAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            
         }
     }
 }
