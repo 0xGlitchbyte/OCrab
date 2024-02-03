@@ -102,8 +102,6 @@ pub enum OCamlUnary {
 
 #[derive(Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub enum OCamlBinary {
-    //    And { left: OCamlExpr, right: OCamlExpr },
-    //    Or { left: OCamlExpr, right: OCamlExpr },
     Plus { left: OCamlExpr, right: OCamlExpr },
     Minus { left: OCamlExpr, right: OCamlExpr },
     Multiply { left: OCamlExpr, right: OCamlExpr },
@@ -111,6 +109,17 @@ pub enum OCamlBinary {
     Modulo { left: OCamlExpr, right: OCamlExpr },
     And { left: OCamlExpr, right: OCamlExpr },
     Or { left: OCamlExpr, right: OCamlExpr },
+    BitXor { left: OCamlExpr, right: OCamlExpr },
+    BitAnd { left: OCamlExpr, right: OCamlExpr },
+    BitOr { left: OCamlExpr, right: OCamlExpr },
+    Shl { left: OCamlExpr, right: OCamlExpr },
+    Shr { left: OCamlExpr, right: OCamlExpr },
+    Eq { left: OCamlExpr, right: OCamlExpr },
+    Lt { left: OCamlExpr, right: OCamlExpr },
+    Le { left: OCamlExpr, right: OCamlExpr },
+    Ne { left: OCamlExpr, right: OCamlExpr },
+    Gt { left: OCamlExpr, right: OCamlExpr },
+    Ge { left: OCamlExpr, right: OCamlExpr },
 }
 
 struct SynPath<'a>(&'a syn::Path);
@@ -303,6 +312,50 @@ impl From<&syn::ExprBinary> for OCamlBinary {
                 right: value.right.as_ref().into(),
             },
             syn::BinOp::Or(_) => OCamlBinary::Or {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::BitAnd(_) => OCamlBinary::BitAnd {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::BitXor(_) => OCamlBinary::BitXor {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::BitOr(_) => OCamlBinary::BitOr {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::Shl(_) => OCamlBinary::Shl {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::Shr(_) => OCamlBinary::Shr {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::Eq(_) => OCamlBinary::Eq {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::Lt(_) => OCamlBinary::Lt {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::Le(_) => OCamlBinary::Le {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::Ne(_) => OCamlBinary::Ne {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::Gt(_) => OCamlBinary::Gt {
+                left: value.left.as_ref().into(),
+                right: value.right.as_ref().into(),
+            },
+            syn::BinOp::Ge(_) => OCamlBinary::Ge {
                 left: value.left.as_ref().into(),
                 right: value.right.as_ref().into(),
             },
