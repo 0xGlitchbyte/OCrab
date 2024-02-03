@@ -51,14 +51,14 @@ impl OCaml {
     }
 
     pub fn from_source(src: &str) -> Result<Self, OCamlError> {
-        let syntax = syn::parse_file(src)
-            .map_err(|e| OCamlError::Parse(format!("'{}': {}", src, e)))?;
+        let syntax =
+            syn::parse_file(src).map_err(|e| OCamlError::Parse(format!("'{}': {}", src, e)))?;
 
         // Rust AST
         // dbg!(&syntax);
 
         let syntax_items: Vec<Self> = syntax.items.iter().map(|item| item.into()).collect();
-        
+
         print!("{:#?}", syntax_items);
 
         Ok(Self::Statements(syntax_items))
@@ -260,12 +260,6 @@ impl From<&syn::LitFloat> for OCamlLiteral {
         }
 
         unreachable!("Unknown suffix: {}", suffix)
-    }
-}
-
-impl From<&syn::LitBool> for OCamlLiteral {
-    fn from(value: &syn::LitBool) -> Self {
-        OCamlLiteral::Boolean { value: value.value }
     }
 }
 
@@ -540,6 +534,5 @@ mod tests {
                 ))),
             }
         );
-
     }
 }
