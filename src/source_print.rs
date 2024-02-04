@@ -107,8 +107,7 @@ impl Display for OCamlType {
                 }
                 Ok(())
             },
-            Self::Never => write!(f, "unit"),
-            Self::Unit => write!(f, "unit"),
+            Self::Never | Self::Unit => write!(f, "unit"),
             Self::Paren(ty) => write!(f, "({})", ty),
             Self::Verbatim(ty) => write!(f, "{}", ty),
         }
