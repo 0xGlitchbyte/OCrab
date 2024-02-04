@@ -35,6 +35,9 @@ pub enum OCamlType {
     Function{ args: Vec<OCamlType>, ret: Box<OCamlType> },
     Path(Vec<String>),
     Tuple(Vec<OCamlType>),
+    Never,
+    Unit,
+    Paren(Box<OCamlType>),
     Verbatim(String),
 }
 
@@ -173,7 +176,7 @@ impl From<SynReturnType<'_>> for OCamlType {
     fn from(value: SynReturnType) -> Self {
         match value.0 {
             syn::ReturnType::Type(_, ty) => SynType(&*ty).into(),
-            syn::ReturnType::Default => OCamlType::Verbatim("unit".to_string()),
+            syn::ReturnType::Default => OCamlType::Unit,
             _ => todo!("{:#?} is not implemented", value.0),
         }
     }
@@ -220,6 +223,8 @@ impl From<SynType<'_>> for OCamlType {
                     .map(|elem| SynType(elem).into())
                     .collect(),
             ),
+            syn::Type::Never(_) => OCamlType::Never,
+            syn::Type::Paren(ty) => OCamlType::Paren(Box::new(SynType(&*ty.elem).into())),
             _ => todo!("{:#?} is not implemented", value.0),
         }
     }

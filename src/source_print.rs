@@ -18,13 +18,13 @@ impl SourcePrinter {
 impl Display for OCaml {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OCaml::Let { name, ty, value } => match (ty, value) {
+            Self::Let { name, ty, value } => match (ty, value) {
                 (Some(ty), None) => write!(f, "let {} : {}", name, ty),
                 (None, Some(value)) => write!(f, "let {} = {}", name, value),
                 (Some(ty), Some(value)) => write!(f, "let {} : {} = {}", name, ty, value),
                 (None, None) => Ok(()),
             },
-            OCaml::Statements(s) => {
+            Self::Statements(s) => {
                 for item in s.iter() {
                     writeln!(f, "{}", item)?;
                 }
@@ -57,18 +57,35 @@ fn to_ocaml_type(ty: &str) -> String {
     }
 }
 
+impl OCamlType {
+    fn maybe_unit(&self) -> bool {
+        match self {
+            Self::Tuple(t) => t.is_empty(),
+            Self::Unit | Self::Never => true,
+            _ => false,
+        }
+    }
+}
+
 impl Display for OCamlType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OCamlType::Pointer { ty, is_const: _is_const } => write!(f, "ref {}", ty),
-            OCamlType::Array { ty, size } => write!(f, "{} array", ty),
-            OCamlType::Function { args, ret } => {
+            Self::Pointer { ty, is_const: _is_const } => write!(f, "ref {}", ty),
+            Self::Array { ty, size: _size } => write!(f, "{} array", ty),
+            Self::Function { args, ret } => {
                 for ty in args.iter() {
                     write!(f, "{} -> ", ty)?;
                 }
-                write!(f, "{}", ret)
+                if args.is_empty() {
+                    write!(f, "unit -> ")?;
+                }
+                if ret.maybe_unit() {
+                    write!(f, "unit")
+                } else {
+                    write!(f, "{}", ret)
+                }
             },
-            OCamlType::Path(p) => {
+            Self::Path(p) => {
                 for part in p.iter().take(p.len() - 1) {
                     write!(f, "{}.", part)?;
                 }
@@ -78,7 +95,7 @@ impl Display for OCamlType {
                 }
                 Ok(())
             },
-            OCamlType::Tuple(t) => {
+            Self::Tuple(t) => {
                 for (index, ty) in t.iter().enumerate() {
                     write!(f, "{}", ty)?;
                     if index < t.len() - 1 {
@@ -87,7 +104,10 @@ impl Display for OCamlType {
                 }
                 Ok(())
             },
-            OCamlType::Verbatim(ty) => write!(f, "{}", ty),
+            Self::Never => write!(f, "unit"),
+            Self::Unit => write!(f, "unit"),
+            Self::Paren(ty) => write!(f, "({})", ty),
+            Self::Verbatim(ty) => write!(f, "{}", ty),
         }
     }
 }
@@ -95,10 +115,10 @@ impl Display for OCamlType {
 impl Display for OCamlExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OCamlExpr::Literal(lit) => write!(f, "{}", lit),
-            OCamlExpr::Path(p) => write!(f, "{}", p.join(".")),
-            OCamlExpr::Unary(unary) => write!(f, "{}", unary),
-            OCamlExpr::Binary(binary) => write!(f, "{}", binary),
+            Self::Literal(lit) => write!(f, "{}", lit),
+            Self::Path(p) => write!(f, "{}", p.join(".")),
+            Self::Unary(unary) => write!(f, "{}", unary),
+            Self::Binary(binary) => write!(f, "{}", binary),
         }
     }
 }
@@ -106,7 +126,7 @@ impl Display for OCamlExpr {
 impl Display for OCamlLiteral {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OCamlLiteral::Integer {
+            Self::Integer {
                 digits,
                 width,
                 is_signed: _is_signed,
@@ -127,7 +147,7 @@ impl Display for OCamlLiteral {
                     write!(f, "{}", digits)
                 }
             }
-            OCamlLiteral::Float { digits, width } => {
+            Self::Float { digits, width } => {
                 if let Some(width) = width {
                     let digits = if !digits.contains(".") {
                         format!("{}.0", digits)
@@ -144,11 +164,11 @@ impl Display for OCamlLiteral {
                     write!(f, "{}", digits)
                 }
             }
-            OCamlLiteral::String(s) => write!(f, "\"{}\"", s),
-            OCamlLiteral::Char(c) => write!(f, "'{}'", c),
-            OCamlLiteral::Bool(b) => write!(f, "{}", b),
-            OCamlLiteral::Byte(b) => write!(f, "'\\x{:02x}'", b),
-            OCamlLiteral::ByteStr(bs) => write!(f, "Bytes.of_string \"{}\"", bs.iter().map(|b| format!("\\x{:02x}", b)).collect::<String>()),
+            Self::String(s) => write!(f, "\"{}\"", s),
+            Self::Char(c) => write!(f, "'{}'", c),
+            Self::Bool(b) => write!(f, "{}", b),
+            Self::Byte(b) => write!(f, "'\\x{:02x}'", b),
+            Self::ByteStr(bs) => write!(f, "Bytes.of_string \"{}\"", bs.iter().map(|b| format!("\\x{:02x}", b)).collect::<String>()),
         }
     }
 }
@@ -168,37 +188,37 @@ impl std::fmt::Display for OCamlBinary {
         match self {
             // ========================= Binary Operations Based on Types =========================
             // TODO: Detect the type of the left and right and use the correct binary operator
-            OCamlBinary::Plus { left, right } => write!(f, "({left} + {right})"),
-            OCamlBinary::Minus { left, right } => write!(f, "({left} - {right})"),
-            OCamlBinary::Multiply { left, right } => write!(f, "({left} * {right})"),
-            OCamlBinary::Divide { left, right } => write!(f, "({left} / {right})"),
-            OCamlBinary::Eq { left, right } => write!(f, "({left} = {right})"),
-            OCamlBinary::Ne { left, right } => write!(f, "({left} <> {right})"),
+            Self::Plus { left, right } => write!(f, "({left} + {right})"),
+            Self::Minus { left, right } => write!(f, "({left} - {right})"),
+            Self::Multiply { left, right } => write!(f, "({left} * {right})"),
+            Self::Divide { left, right } => write!(f, "({left} / {right})"),
+            Self::Eq { left, right } => write!(f, "({left} = {right})"),
+            Self::Ne { left, right } => write!(f, "({left} <> {right})"),
 
             // =====================================================================================
 
-            OCamlBinary::Modulo { left, right } => write!(f, "({left} mod {right})"),
-            OCamlBinary::And { left, right } => write!(f, "({left} && {right})"),
-            OCamlBinary::Or { left, right } => write!(f, "({left} || {right})"),
-            OCamlBinary::BitXor { left, right } => write!(f, "({left} lxor {right})"),
-            OCamlBinary::BitAnd { left, right } => write!(f, "({left} land {right})"),
-            OCamlBinary::BitOr { left, right } => write!(f, "({left} lor {right})"),
-            OCamlBinary::Shl { left, right } => write!(f, "({left} lsl {right})"),
-            OCamlBinary::Shr { left, right } => write!(f, "({left} lsr {right})"),
-            OCamlBinary::Lt { left, right } => write!(f, "({left} < {right})"),
-            OCamlBinary::Le { left, right } => write!(f, "({left} <= {right})"),
-            OCamlBinary::Gt { left, right } => write!(f, "({left} > {right})"),
-            OCamlBinary::Ge { left, right } => write!(f, "({left} >= {right})"),
-            OCamlBinary::AddAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
-            OCamlBinary::SubAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
-            OCamlBinary::MulAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
-            OCamlBinary::DivAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
-            OCamlBinary::RemAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
-            OCamlBinary::BitXorAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
-            OCamlBinary::BitAndAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
-            OCamlBinary::BitOrAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
-            OCamlBinary::ShlAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
-            OCamlBinary::ShrAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            Self::Modulo { left, right } => write!(f, "({left} mod {right})"),
+            Self::And { left, right } => write!(f, "({left} && {right})"),
+            Self::Or { left, right } => write!(f, "({left} || {right})"),
+            Self::BitXor { left, right } => write!(f, "({left} lxor {right})"),
+            Self::BitAnd { left, right } => write!(f, "({left} land {right})"),
+            Self::BitOr { left, right } => write!(f, "({left} lor {right})"),
+            Self::Shl { left, right } => write!(f, "({left} lsl {right})"),
+            Self::Shr { left, right } => write!(f, "({left} lsr {right})"),
+            Self::Lt { left, right } => write!(f, "({left} < {right})"),
+            Self::Le { left, right } => write!(f, "({left} <= {right})"),
+            Self::Gt { left, right } => write!(f, "({left} > {right})"),
+            Self::Ge { left, right } => write!(f, "({left} >= {right})"),
+            Self::AddAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            Self::SubAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            Self::MulAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            Self::DivAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            Self::RemAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            Self::BitXorAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            Self::BitAndAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            Self::BitOrAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            Self::ShlAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
+            Self::ShrAssign { .. } => unimplemented!("These operations are not supported and should be transformed into simple binary operation."),
             
         }
     }
