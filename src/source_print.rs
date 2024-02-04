@@ -102,6 +102,9 @@ impl Display for OCamlType {
                         write!(f, " * ")?;
                     }
                 }
+                if t.is_empty() {
+                    write!(f, "()")?;
+                }
                 Ok(())
             },
             Self::Never => write!(f, "unit"),
