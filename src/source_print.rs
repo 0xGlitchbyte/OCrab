@@ -179,8 +179,8 @@ impl Display for OCamlUnary {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Minus(neg) => write!(f, "-({})", neg),
-            Self::Not(not) => write!(f, "!({})", not),
-            Self::Deref(star) => write!(f, "{}", star),
+            Self::Not(not) => write!(f, "not ({})", not),
+            Self::Deref(star) => write!(f, "!({})", star),
         }
     }
 }
