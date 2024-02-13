@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::Read;
-use syn;
+// use syn;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum OCamlError {
@@ -30,9 +30,18 @@ impl std::fmt::Display for OCamlError {
 
 #[derive(Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub enum OCamlType {
-    Pointer{ ty: Box<OCamlType>, is_const: bool },
-    Array{ ty: Box<OCamlType>, size: Option<usize> },
-    Function{ args: Vec<OCamlType>, ret: Box<OCamlType> },
+    Pointer {
+        ty: Box<OCamlType>,
+        is_const: bool,
+    },
+    Array {
+        ty: Box<OCamlType>,
+        size: Option<usize>,
+    },
+    Function {
+        args: Vec<OCamlType>,
+        ret: Box<OCamlType>,
+    },
     Path(Vec<String>),
     Tuple(Vec<OCamlType>),
     Never,
@@ -68,11 +77,11 @@ impl OCaml {
             syn::parse_file(src).map_err(|e| OCamlError::Parse(format!("'{}': {}", src, e)))?;
 
         // Rust AST
-        // dbg!(&syntax);
+        dbg!(&syntax);
 
         let syntax_items: Vec<Self> = syntax.items.iter().map(|item| item.into()).collect();
 
-        print!("{:#?}", syntax_items);
+        //print!("{:#?}", syntax_items);
 
         Ok(Self::Statements(syntax_items))
     }
@@ -94,6 +103,22 @@ impl OCamlExpr {
             _ => None,
         }
     }
+}
+
+#[derive(Debug, PartialEq, PartialOrd, Ord, Eq)]
+pub struct OCamlExprCast {
+    expr: OCamlExpr,
+    ty: OCamlType,
+}
+
+#[derive(Debug, PartialEq, PartialOrd, Ord, Eq)]
+pub enum OCamlUpcast {
+    As(),
+}
+
+#[derive(Debug, PartialEq, PartialOrd, Ord, Eq)]
+pub enum OCamlPtr {
+    Element(Vec<String>),
 }
 
 #[derive(Debug, PartialEq, PartialOrd, Ord, Eq)]
@@ -198,7 +223,7 @@ impl From<SynType<'_>> for OCamlType {
                     ty: Box::new(SynType(&ty.elem).into()),
                     size: len_expr.eval_to_int(),
                 }
-            },
+            }
             syn::Type::BareFn(ty) => {
                 let args: Vec<OCamlType> = ty
                     .inputs
@@ -207,7 +232,7 @@ impl From<SynType<'_>> for OCamlType {
                     .collect();
                 let ret = Box::new(SynReturnType(&ty.output).into());
                 OCamlType::Function { args, ret }
-            },
+            }
             syn::Type::Verbatim(ty) => OCamlType::Verbatim(ty.to_string()),
             syn::Type::Slice(ty) => OCamlType::Array {
                 ty: Box::new(SynType(&ty.elem).into()),
@@ -217,12 +242,9 @@ impl From<SynType<'_>> for OCamlType {
                 ty: Box::new(SynType(&ty.elem).into()),
                 is_const: ty.mutability.is_none(),
             },
-            syn::Type::Tuple(ty) => OCamlType::Tuple(
-                ty.elems
-                    .iter()
-                    .map(|elem| SynType(elem).into())
-                    .collect(),
-            ),
+            syn::Type::Tuple(ty) => {
+                OCamlType::Tuple(ty.elems.iter().map(|elem| SynType(elem).into()).collect())
+            }
             syn::Type::Never(_) => OCamlType::Never,
             syn::Type::Paren(ty) => OCamlType::Paren(Box::new(SynType(&*ty.elem).into())),
             _ => todo!("{:#?} is not implemented", value.0),
@@ -277,7 +299,7 @@ impl From<&syn::Lit> for OCamlLiteral {
 
 pub(crate) fn size_from_rust_basic_number_type(ty: &str) -> (u8, Option<usize>) {
     let type_width = &ty[1..];
-    if ty.starts_with('f'){
+    if ty.starts_with('f') {
         return (b'f', type_width.parse().ok());
     }
 
@@ -317,11 +339,8 @@ impl From<&syn::LitInt> for OCamlLiteral {
             };
         }
 
-       return if prefix == b'f' {
-            OCamlLiteral::Float {
-                digits,
-                width,
-            }
+        return if prefix == b'f' {
+            OCamlLiteral::Float { digits, width }
         } else {
             OCamlLiteral::Integer {
                 digits,
@@ -329,7 +348,7 @@ impl From<&syn::LitInt> for OCamlLiteral {
                 is_signed: Some(is_signed),
                 is_native: false,
             }
-        }
+        };
     }
 }
 
@@ -349,10 +368,7 @@ impl From<&syn::LitFloat> for OCamlLiteral {
         let (prefix, width) = size_from_rust_basic_number_type(suffix);
 
         if prefix == b'f' && width.is_some() {
-            return OCamlLiteral::Float {
-                digits,
-                width,
-            };
+            return OCamlLiteral::Float { digits, width };
         }
 
         unreachable!("Unknown suffix: {}", suffix)
@@ -412,6 +428,15 @@ impl From<&syn::ExprBinary> for OCamlBinary {
             syn::BinOp::ShlAssign(_) => impl_from_expr_binary!(value, ShlAssign),
             syn::BinOp::ShrAssign(_) => impl_from_expr_binary!(value, ShrAssign),
             _ => unimplemented!("{:#?} is not implemented", value),
+        }
+    }
+}
+
+impl From<&syn::ExprCast> for OCamlExprCast {
+    fn from(value: &syn::ExprCast) -> Self {
+        Self {
+            expr: value.expr.as_ref().into(),
+            ty: SynType(value.ty.as_ref()).into(),
         }
     }
 }
